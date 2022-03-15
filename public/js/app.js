@@ -181,17 +181,28 @@
                         self.participants = doc.data().participants;
                         self.revealed = doc.data().revealed;
 
-                        //Make a new participant
-                        var participant = {
-                            participantID: _.toString(uuidv4()),
-                            name: self.getRandomParticipantName(),
-                            selection: ''
-                        };
-                        self.participants.push(participant);
-                        self.participantID = participant.participantID;
-                        self.updateRoomDocument({
-                            participants: self.participants
-                        });
+                        var pID = _.toString(uuidv4());
+                        var participant = null;
+
+                        //Check to see if the user previously connected to the room
+                        if (self.getLocalStorage(self.roomID) === null) {
+                            //The user has not joined this room before
+                            self.setLocalStorage(self.roomID, pID); //Set local storage so we can connect again if need be
+                            //Make a new participant
+                            participant = {
+                                participantID: pID,
+                                name: self.getRandomParticipantName(),
+                                selection: ''
+                            };
+                            self.participants.push(participant);
+                            self.participantID = pID;
+                            self.updateRoomDocument({
+                                participants: self.participants
+                            });
+                        } else {
+                            //The user has joined this room before, don't create a new participant
+                            self.participantID = self.getLocalStorage(self.roomID);
+                        }
                     } else {
                         console.error('Room does not exist!');
                     }
@@ -282,6 +293,14 @@
                 var min = Math.ceil(0);
                 var max = Math.floor(this.participantNames.length);
                 return this.participantNames[Math.floor(Math.random() * (max - min) + min)]; //The maximum is exclusive and the minimum is inclusive
+            },
+            getLocalStorage(key) {
+                var storage = window.localStorage;
+                return storage.getItem(key);
+            },
+            setLocalStorage(key, value) {
+                var storage = window.localStorage;
+                storage.setItem(key, value);
             }
         }
     }).mount('#app');
