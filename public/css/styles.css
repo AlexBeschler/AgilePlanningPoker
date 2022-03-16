@@ -6,11 +6,20 @@ body {
     padding: 0;
 }
 
-.container {
-    background-color: #e9e9e9;
-    padding: 1rem;
-    border-radius: 4px;
-    margin-top: 1.5rem;
+.decorative-card {
+    border-radius: 1em;
+}
+
+.center-screen {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    min-height: 100vh;
+}
+
+#koikoiCoverPhoto {
+    height: 15rem;
 }
 
 .poker-card {
@@ -28,12 +37,21 @@ body {
     cursor: pointer;
 }
 
-.poker-card > span.card-value {
+.poker-card>span.card-value {
     padding: 0.5em;
 }
 
 .participant-list {
-    font-size: 1.2em!important;
+    font-size: 1.2em !important;
+    display: grid;
+    gap: 0.5rem;
+    border: 0;
+    padding-right: 0;
+}
+
+li.participant {
+    border-radius: .5rem!important;
+    border: 1px solid rgb(0 0 0 / 25%)!important;
 }
 
 .make-it-neat-padding {

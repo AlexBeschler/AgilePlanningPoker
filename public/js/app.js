@@ -5,6 +5,7 @@
             return {
                 db: null,
                 roomCreated: false,
+                showLoading: true,
                 roomID: '',
                 isRoomAdmin: true,
                 participants: [],
@@ -121,6 +122,9 @@
             this.db = firebase.firestore();
             this.joinRoom();
         },
+        mounted() {
+            this.showLoading = false;
+        },
         destroy() {
             //remove user from room
         },
@@ -236,6 +240,10 @@
                 });
             },
             reveal() {
+                if (this.revealed) {
+                    this.revealed = false;
+                    return;
+                }
                 this.revealed = true;
                 this.updateRoomDocument({
                     revealed: true
