@@ -12,6 +12,7 @@
                 participantID: '',
                 currentPack: 0,
                 revealed: false,
+                revealButtonText: 'Reveal',
                 packs: [{
                         id: 0,
                         title: 'Fibonacci',
@@ -241,9 +242,14 @@
             },
             reveal() {
                 if (this.revealed) {
+                    this.revealButtonText = 'Reveal';
                     this.revealed = false;
+                    this.updateRoomDocument({
+                        revealed: false
+                    });
                     return;
                 }
+                this.revealButtonText = 'Hide';
                 this.revealed = true;
                 this.updateRoomDocument({
                     revealed: true
