@@ -5,12 +5,14 @@
             return {
                 db: null,
                 roomCreated: false,
+                showLoading: true,
                 roomID: '',
                 isRoomAdmin: true,
                 participants: [],
                 participantID: '',
                 currentPack: 0,
                 revealed: false,
+                revealButtonText: 'Reveal',
                 packs: [{
                         id: 0,
                         title: 'Fibonacci',
@@ -19,7 +21,8 @@
                             '2',
                             '3',
                             '5',
-                            '8'
+                            '8',
+                            '13'
                         ]
                     },
                     {
@@ -121,6 +124,9 @@
             this.db = firebase.firestore();
             this.joinRoom();
         },
+        mounted() {
+            this.showLoading = false;
+        },
         destroy() {
             //remove user from room
         },
@@ -181,17 +187,28 @@
                         self.participants = doc.data().participants;
                         self.revealed = doc.data().revealed;
 
-                        //Make a new participant
-                        var participant = {
-                            participantID: _.toString(uuidv4()),
-                            name: self.getRandomParticipantName(),
-                            selection: ''
-                        };
-                        self.participants.push(participant);
-                        self.participantID = participant.participantID;
-                        self.updateRoomDocument({
-                            participants: self.participants
-                        });
+                        var pID = _.toString(uuidv4());
+                        var participant = null;
+
+                        //Check to see if the user previously connected to the room
+                        if (self.getLocalStorage(self.roomID) === null) {
+                            //The user has not joined this room before
+                            self.setLocalStorage(self.roomID, pID); //Set local storage so we can connect again if need be
+                            //Make a new participant
+                            participant = {
+                                participantID: pID,
+                                name: self.getRandomParticipantName(),
+                                selection: ''
+                            };
+                            self.participants.push(participant);
+                            self.participantID = pID;
+                            self.updateRoomDocument({
+                                participants: self.participants
+                            });
+                        } else {
+                            //The user has joined this room before, don't create a new participant
+                            self.participantID = self.getLocalStorage(self.roomID);
+                        }
                     } else {
                         console.error('Room does not exist!');
                     }
@@ -203,8 +220,28 @@
                 var self = this;
                 this.db.collection('rooms').doc(this.roomID).onSnapshot((doc) => {
                     self.currentPack = doc.data().currentPack;
-                    self.participants = doc.data().participants;
                     self.revealed = doc.data().revealed;
+                    //Find out what participant change occurred
+                    //Loop thru server copy of participant list
+                    doc.data().participants.forEach(participant => {
+                        //Find corresponding participant
+                        var id = _.findIndex(self.participants, function(o) {
+                            return o.participantID == participant.participantID;
+                        });
+                        if (id === -1) {
+                            //User was newly added
+                            console.log('Added '  + participant.name);
+                            self.participants.push(participant);
+                        } else {
+                            if (self.participants[id].selection !== participant.selection) {
+                                //Someone made a selection change
+                                console.log(participant.name + ' changed their selection');
+                                self.participants[id].selection = participant.selection;
+                            }
+                        }
+                    });
+                    self.participants = doc.data().participants;
+                    
                 });
             },
             changeCardPack(pack) {
@@ -225,6 +262,15 @@
                 });
             },
             reveal() {
+                if (this.revealed) {
+                    this.revealButtonText = 'Reveal';
+                    this.revealed = false;
+                    this.updateRoomDocument({
+                        revealed: false
+                    });
+                    return;
+                }
+                this.revealButtonText = 'Hide';
                 this.revealed = true;
                 this.updateRoomDocument({
                     revealed: true
@@ -282,6 +328,14 @@
                 var min = Math.ceil(0);
                 var max = Math.floor(this.participantNames.length);
                 return this.participantNames[Math.floor(Math.random() * (max - min) + min)]; //The maximum is exclusive and the minimum is inclusive
+            },
+            getLocalStorage(key) {
+                var storage = window.localStorage;
+                return storage.getItem(key);
+            },
+            setLocalStorage(key, value) {
+                var storage = window.localStorage;
+                storage.setItem(key, value);
             }
         }
     }).mount('#app');
