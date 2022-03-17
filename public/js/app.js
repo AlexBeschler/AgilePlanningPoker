@@ -21,7 +21,8 @@
                             '2',
                             '3',
                             '5',
-                            '8'
+                            '8',
+                            '13'
                         ]
                     },
                     {
@@ -219,8 +220,28 @@
                 var self = this;
                 this.db.collection('rooms').doc(this.roomID).onSnapshot((doc) => {
                     self.currentPack = doc.data().currentPack;
-                    self.participants = doc.data().participants;
                     self.revealed = doc.data().revealed;
+                    //Find out what participant change occurred
+                    //Loop thru server copy of participant list
+                    doc.data().participants.forEach(participant => {
+                        //Find corresponding participant
+                        var id = _.findIndex(self.participants, function(o) {
+                            return o.participantID == participant.participantID;
+                        });
+                        if (id === -1) {
+                            //User was newly added
+                            console.log('Added '  + participant.name);
+                            self.participants.push(participant);
+                        } else {
+                            if (self.participants[id].selection !== participant.selection) {
+                                //Someone made a selection change
+                                console.log(participant.name + ' changed their selection');
+                                self.participants[id].selection = participant.selection;
+                            }
+                        }
+                    });
+                    self.participants = doc.data().participants;
+                    
                 });
             },
             changeCardPack(pack) {
