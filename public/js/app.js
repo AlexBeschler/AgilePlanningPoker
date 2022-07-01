@@ -154,8 +154,8 @@
                                 name: self.getRandomParticipantName(),
                                 selection: ''
                             };
-                            self.participants.push(participant);
                             self.participantID = participant.participantID;
+                            self.participants.push(participant);
                             self.updateRoomDocument({
                                 participants: self.participants
                             });
@@ -252,14 +252,36 @@
                     });
                 },
                 clickedPokerCard(val) {
+                    var self = this;
+                    var changeIndex = 0;
                     for (var i = 0; i < this.participants.length; i++) {
                         if (this.participants[i].participantID === this.participantID) {
+                            changeIndex = i;
                             this.participants[i].selection = val;
                             break;
                         }
                     }
-                    this.updateRoomDocument({
-                        participants: this.participants
+                    var docRef = this.db.collection('rooms').doc(this.roomID);
+                    return this.db.runTransaction((transaction) => {
+                        return transaction.get(docRef).then((doc) => {
+                            if (!doc.exists) {
+                                throw 'Document does not exist!';
+                            }
+
+                            var p = doc.data().participants;
+                            p[changeIndex].selection = val;
+                            transaction.update(docRef, { participants: p});
+                            return p;
+                        });
+                    }).then(() => {
+                        console.log('Transaction successful!');
+                        /*
+                        this.updateRoomDocument({
+                            participants: this.participants
+                        });
+                        */
+                    }).catch((error) => {
+                        console.error('Transaction failed: ', error);
                     });
                 },
                 reveal() {
