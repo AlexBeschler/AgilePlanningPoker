@@ -14,6 +14,7 @@
                     currentPack: 0,
                     revealed: false,
                     revealButtonText: 'Reveal',
+                    totalsText: '(Hidden)',
                     packs: [{
                             id: 0,
                             title: 'Fibonacci',
@@ -61,7 +62,6 @@
                         "Axolotl",
                         "Badger",
                         "Bat",
-                        "Bear",
                         "Beaver",
                         "Buffalo",
                         "Camel",
@@ -75,7 +75,6 @@
                         "Crow",
                         "Dingo",
                         "Dinosaur",
-                        "Dog",
                         "Dolphin",
                         "Duck",
                         "Elephant",
@@ -95,7 +94,6 @@
                         "Kraken",
                         "Lemur",
                         "Leopard",
-                        "Lion",
                         "Llama",
                         "Manatee",
                         "Mink",
@@ -131,6 +129,47 @@
             destroy() {
                 //remove user from room
             },
+            watch: {
+                revealed() {
+                    var self = this;
+                    if (self.revealed) {
+                        if (self.currentPack == 0) {
+                            //Calculate totals
+                            var hi = 0;
+                            var lo = 99;
+                            var total = 0;
+                            var avg = 0;
+
+                            self.participants.forEach(p => {
+                                var c = parseInt(p.selection);
+                                if (c > hi) {
+                                    hi = c;
+                                }
+                                if (c < lo) {
+                                    lo = c;
+                                }
+                                total += c;
+                            });
+
+                            avg = total / self.participants.length;
+
+                            self.totalsText = 'Hi: ' + hi + '; Lo: ' + lo + '; Avg: ' + avg;
+                        } else {
+                            self.totalsText = 'Scoring not available';
+                        }
+                    } else {
+                        self.totalsText = '(Hidden)';
+                    }
+
+                    anime({
+                        targets: this.$refs.headerText,
+                        translateY: ['-50%', '0%'],
+                        opacity: [0, 1],
+                        duration: 250,
+                        easing: 'easeInOutQuad'
+                    });
+                }
+            },
             methods: {
                 createRoom() {
                     var self = this;
@@ -148,16 +187,21 @@
                             self.roomID = room.docID;
                             self.roomCreated = true;
                             self.listenRoom();
+                            var name = self.getRandomParticipantName();
+                            var avatarURL = self.getAvatarFromName(name);
                             //Make a new participant
                             var participant = {
                                 participantID: _.toString(uuidv4()),
-                                name: self.getRandomParticipantName(),
-                                selection: ''
+                                name: name,
+                                selection: '',
+                                avatarURL: avatarURL
                             };
                             self.participantID = participant.participantID;
                             self.participants.push(participant);
-                            self.updateRoomDocument({
+                            self.db.collection('rooms').doc(self.roomID).update({
                                 participants: self.participants
+                            }).catch((error) => {
+                                console.error(error);
                             });
                         })
                         .catch((error) => {
@@ -182,39 +226,46 @@
                     this.listenRoom();
 
                     //Get current room data
-                    this.db.collection('rooms').doc(this.roomID).get().then((doc) => {
-                        if (doc.exists) {
+                    var docRef = this.db.collection('rooms').doc(this.roomID);
+                    return this.db.runTransaction((transaction) => {
+                        return transaction.get(docRef).then((doc) => {
+                            if (!doc.exists) {
+                                throw 'Document does not exist!';
+                            }
+
                             self.currentPack = doc.data().currentPack;
                             self.participants = doc.data().participants;
                             self.revealed = doc.data().revealed;
-
                             var pID = _.toString(uuidv4());
                             var participant = null;
-
                             //Check to see if the user previously connected to the room
                             if (self.getLocalStorage(self.roomID) === null) {
                                 //The user has not joined this room before
                                 self.setLocalStorage(self.roomID, pID); //Set local storage so we can connect again if need be
                                 //Make a new participant
+                                var name = self.getRandomParticipantName();
+                                var avatarURL = self.getAvatarFromName(name);
                                 participant = {
                                     participantID: pID,
-                                    name: self.getRandomParticipantName(),
-                                    selection: ''
+                                    name: name,
+                                    selection: '',
+                                    avatarURL: avatarURL
                                 };
                                 self.participants.push(participant);
                                 self.participantID = pID;
-                                self.updateRoomDocument({
+                                transaction.update(docRef, {
                                     participants: self.participants
                                 });
+                                return self.participants;
                             } else {
                                 //The user has joined this room before, don't create a new participant
                                 self.participantID = self.getLocalStorage(self.roomID);
                             }
-                        } else {
-                            console.error('Room does not exist!');
-                        }
+                        });
+                    }).then(() => {
+                        console.log('Transaction successful!');
                     }).catch((error) => {
-                        console.log("Error getting document:", error);
+                        console.error('Transaction failed: ', error);
                     });
                 },
                 listenRoom() {
@@ -246,13 +297,29 @@
                     });
                 },
                 changeCardPack(pack) {
+                    var self = this;
                     this.currentPack = pack.id;
-                    this.updateRoomDocument({
-                        currentPack: pack.id
+
+                    //Get current room data
+                    var docRef = this.db.collection('rooms').doc(this.roomID);
+                    return this.db.runTransaction((transaction) => {
+                        return transaction.get(docRef).then((doc) => {
+                            if (!doc.exists) {
+                                throw 'Document does not exist!';
+                            }
+
+                            transaction.update(docRef, {
+                                currentPack: self.currentPack
+                            });
+                            return self.currentPack;
+                        });
+                    }).then(() => {
+                        console.log('Transaction successful!');
+                    }).catch((error) => {
+                        console.error('Transaction failed: ', error);
                     });
                 },
                 clickedPokerCard(val) {
-                    var self = this;
                     var changeIndex = 0;
                     for (var i = 0; i < this.participants.length; i++) {
                         if (this.participants[i].participantID === this.participantID) {
@@ -270,52 +337,82 @@
 
                             var p = doc.data().participants;
                             p[changeIndex].selection = val;
-                            transaction.update(docRef, { participants: p});
+                            transaction.update(docRef, {
+                                participants: p
+                            });
                             return p;
                         });
                     }).then(() => {
                         console.log('Transaction successful!');
-                        /*
-                        this.updateRoomDocument({
-                            participants: this.participants
-                        });
-                        */
                     }).catch((error) => {
                         console.error('Transaction failed: ', error);
                     });
                 },
                 reveal() {
-                    if (this.revealed) {
-                        this.revealButtonText = 'Reveal';
-                        this.revealed = false;
-                        this.updateRoomDocument({
-                            revealed: false
+                    var self = this;
+                    this.$refs.headerText.style.opacity = 0;
+
+                    //Get current room data
+                    var docRef = this.db.collection('rooms').doc(this.roomID);
+                    return this.db.runTransaction((transaction) => {
+                        return transaction.get(docRef).then((doc) => {
+                            if (!doc.exists) {
+                                throw 'Document does not exist!';
+                            }
+                            if (self.revealed) {
+                                self.revealButtonText = 'Reveal';
+                                self.revealed = false;
+                                transaction.update(docRef, {
+                                    revealed: false
+                                });
+                                return self.revealed;
+                            } else {
+                                self.revealButtonText = 'Hide';
+                                self.revealed = true;
+                                transaction.update(docRef, {
+                                    revealed: true
+                                });
+                                return self.revealed;
+                            }
                         });
-                        return;
-                    }
-                    this.revealButtonText = 'Hide';
-                    this.revealed = true;
-                    this.updateRoomDocument({
-                        revealed: true
+                    }).then(() => {
+                        console.log('Transaction successful!');
+                    }).catch((error) => {
+                        console.error('Transaction failed: ', error);
                     });
                 },
                 reset() {
+                    var self = this;
+                    //Reset everyone's selection
                     this.participants.forEach(element => {
                         element.selection = '';
                     });
+                    //Hide numbers
                     this.revealed = false;
-                    this.updateRoomDocument({
-                        participants: this.participants,
-                        revealed: false
+                    this.revealButtonText = 'Reveal';
+                    this.totalsText = '(Hidden)';
+                    //Get current room data
+                    var docRef = this.db.collection('rooms').doc(this.roomID);
+                    return this.db.runTransaction((transaction) => {
+                        return transaction.get(docRef).then((doc) => {
+                            if (!doc.exists) {
+                                throw 'Document does not exist!';
+                            }
+                            var update = {
+                                revealed: false,
+                                participants: self.participants
+                            };
+                            transaction.update(docRef, update);
+                            return update;
+                        });
+                    }).then(() => {
+                        console.log('Transaction successful!');
+                    }).catch((error) => {
+                        console.error('Transaction failed: ', error);
                     });
                 },
 
                 //Utils
-                updateRoomDocument(update) {
-                    this.db.collection('rooms').doc(this.roomID).update(update).catch((error) => {
-                        console.error(error);
-                    });
-                },
                 copyTextToClipboard(text) {
                     if (!navigator.clipboard) {
                         var textArea = document.createElement("textarea");
@@ -351,6 +448,9 @@
                     var min = Math.ceil(0);
                     var max = Math.floor(this.participantNames.length);
                     return this.participantNames[Math.floor(Math.random() * (max - min) + min)]; //The maximum is exclusive and the minimum is inclusive
+                },
+                getAvatarFromName(participant) {
+                    return 'https://agile-planning-poker-c0fea.firebaseapp.com/assets/avatars/' + participant + '.png';
                 },
                 getLocalStorage(key) {
                     var storage = window.localStorage;
