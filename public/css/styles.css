@@ -12,6 +12,8 @@ body {
 
 .rounded-button {
     border-radius: 20px;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
 }
 
 .badge {
