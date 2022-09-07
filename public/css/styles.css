@@ -10,21 +10,56 @@ body {
     padding: 0;
 }
 
+.rounded-button {
+    border-radius: 20px;
+}
+
+.badge {
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+}
+
 .decorative-card {
     border-radius: 1em;
-    width: 90%;
 }
 
 .center-screen {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: grid;
     text-align: center;
     min-height: 100vh;
 }
 
 #koikoiCoverPhoto {
     height: 15rem;
+}
+
+.settings-col {
+    border-right: 1px solid #cccccc;
+}
+
+.content-col {
+    border-right: 1px solid #cccccc;
+}
+
+.settings-button {
+    border-radius: 45px;
+    padding: 0.75rem;
+    display: flex;
+    align-self: end;
+    border: none;
+    margin-left: -16px;
+}
+
+.settings-button>svg {
+    margin: 0.25rem;
+    width: 26px;
+    height: 26px;
+}
+
+.settings-button-mobile {
+    display: none;
 }
 
 .poker-card {
@@ -102,4 +137,30 @@ li.participant {
 .slide-fade-enter-from,
 .slide-fade-leave-to {
     opacity: 0;
+}
+
+@media only screen and (max-width: 767px) {
+    .content-col {
+        border-right: inherit;
+    }
+    
+    .settings-button-mobile {
+        display: flex;
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        margin-right: 1.25rem;
+        margin-bottom: 1.25rem;
+        border-radius: 45px;
+        padding: 0.75rem;
+        align-self: end;
+        border: none;
+        width: auto;
+    }
+
+    .settings-button-mobile>svg {
+        margin: 0.25rem;
+        width: 26px;
+        height: 26px;
+    }
 }

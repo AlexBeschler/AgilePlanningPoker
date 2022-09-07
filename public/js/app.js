@@ -183,9 +183,7 @@
                     };
                     this.db.collection('rooms').doc(docID).set(room)
                         .then(() => {
-                            self.copyTextToClipboard('https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + room.docID);
                             self.roomID = room.docID;
-                            self.roomCreated = true;
                             self.listenRoom();
                             var name = self.getRandomParticipantName();
                             var avatarURL = self.getAvatarFromName(name);
@@ -203,6 +201,14 @@
                             }).catch((error) => {
                                 console.error(error);
                             });
+                            self.roomCreated = true;
+                            self.$refs.copyInput.value = 'https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + room.docID;
+                            self.copyTextToClipboard('https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + room.docID);
+                            var copyModal = new bootstrap.Modal(this.$refs.copyToClipboardModal);
+                            self.$refs.copyToClipboardModal.addEventListener('shown.bs.modal', () => {
+                                self.$refs.copyInput.focus();
+                            });
+                            copyModal.toggle();
                         })
                         .catch((error) => {
                             console.error(error);
