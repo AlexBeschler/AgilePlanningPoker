@@ -78,10 +78,19 @@ body {
     color: #25201c;
     font-size: 1.5em;
     cursor: pointer;
+    transition: all .15s ease-in-out;
 }
 
 .poker-card>span.card-value {
     padding: 0.5em;
+}
+
+.poker-card.selected {
+    background-color: #ffc96e;
+    border: 1px solid #e5bb6f;
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,0.275);
 }
 
 .participant-list {

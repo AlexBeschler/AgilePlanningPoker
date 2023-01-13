@@ -15,6 +15,7 @@
                     revealed: false,
                     revealButtonText: 'Reveal',
                     totalsText: '(Hidden)',
+                    cardSelection: '', 
                     packs: [{
                             id: 0,
                             title: 'Fibonacci',
@@ -51,6 +52,17 @@
                                 'L',
                                 'XL',
                                 'XXL'
+                            ]
+                        },
+                        {
+                            id: 3,
+                            title: 'Linear',
+                            data: [
+                                '1',
+                                '2',
+                                '3',
+                                '4',
+                                '5'
                             ]
                         }
                     ],
@@ -133,10 +145,10 @@
                 revealed() {
                     var self = this;
                     if (self.revealed) {
+                        var hi = 0;
+                        var lo = 99;
                         if (self.currentPack == 0) {
                             //Calculate totals
-                            var hi = 0;
-                            var lo = 99;
                             var total = 0;
                             var avg = 0;
 
@@ -154,6 +166,21 @@
                             avg = total / self.participants.length;
 
                             self.totalsText = 'Hi: ' + hi + '; Lo: ' + lo + '; Avg: ' + avg;
+                        } else if (self.currentPack == 3) {
+                            var votes = [];
+                            self.participants.forEach(p => {
+                                var c = parseInt(p.selection);
+                                votes.push(c);
+                                if (c > hi) {
+                                    hi = c;
+                                }
+                                if (c < lo) {
+                                    lo = c;
+                                }
+                                total += c;
+                            });
+
+                            self.totalsText = 'Hi: ' + hi + '; Lo: ' + lo + '; St. Dev: ' + self.getStandardDeviation(votes);
                         } else {
                             self.totalsText = 'Scoring not available';
                         }
@@ -169,6 +196,8 @@
                         easing: 'easeInOutQuad'
                     });
                 }
+            },
+            computed: {
             },
             methods: {
                 createRoom() {
@@ -279,6 +308,7 @@
                     this.db.collection('rooms').doc(this.roomID).onSnapshot((doc) => {
                         self.currentPack = doc.data().currentPack;
                         self.revealed = doc.data().revealed;
+                        
                         //Find out what participant change occurred
                         //Loop thru server copy of participant list
                         doc.data().participants.forEach(participant => {
@@ -296,10 +326,16 @@
                                     console.log(participant.name + ' changed their selection');
                                     self.participants[id].selection = participant.selection;
                                 }
+                                //This is me
+                                if (participant.participantID == self.participantID) {
+                                    if (participant.selection === "") {
+                                        //Room was reset, reset my card
+                                        self.cardSelection = "";
+                                    }
+                                }
                             }
                         });
                         self.participants = doc.data().participants;
-
                     });
                 },
                 changeCardPack(pack) {
@@ -325,7 +361,13 @@
                         console.error('Transaction failed: ', error);
                     });
                 },
-                clickedPokerCard(val) {
+                clickedPokerCard(val, index) {
+                    this.cardSelection = val;
+                    //Remove any previously selected cards
+                    for (var j = 0; j < this.$refs.pokerCards.length; j++) {
+                        this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
+                    }
+                    this.$refs.pokerCards[index].childNodes[0].classList.add('selected');
                     var changeIndex = 0;
                     for (var i = 0; i < this.participants.length; i++) {
                         if (this.participants[i].participantID === this.participantID) {
@@ -354,6 +396,11 @@
                         console.error('Transaction failed: ', error);
                     });
                 },
+                checkForSelection(val) {
+                    return {
+                        'selected': val === this.cardSelection ? true : false
+                    };
+                },
                 reveal() {
                     var self = this;
                     this.$refs.headerText.style.opacity = 0;
@@ -364,6 +411,9 @@
                         return transaction.get(docRef).then((doc) => {
                             if (!doc.exists) {
                                 throw 'Document does not exist!';
+                            }
+                            for (var j = 0; j < self.$refs.pokerCards.length; j++) {
+                                self.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
                             }
                             if (self.revealed) {
                                 self.revealButtonText = 'Reveal';
@@ -393,6 +443,9 @@
                     this.participants.forEach(element => {
                         element.selection = '';
                     });
+                    for (var j = 0; j < this.$refs.pokerCards.length; j++) {
+                        this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
+                    }
                     //Hide numbers
                     this.revealed = false;
                     this.revealButtonText = 'Reveal';
@@ -416,6 +469,9 @@
                     }).catch((error) => {
                         console.error('Transaction failed: ', error);
                     });
+                },
+                updateTotalsText() {
+                    //
                 },
 
                 //Utils
@@ -465,6 +521,11 @@
                 setLocalStorage(key, value) {
                     var storage = window.localStorage;
                     storage.setItem(key, value);
+                },
+                getStandardDeviation(array) {
+                    const n = array.length;
+                    const mean = array.reduce((a, b) => a + b) / n;
+                    return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n).toFixed(3);
                 }
             }
         }).mount('#app');

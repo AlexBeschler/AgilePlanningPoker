@@ -61,8 +61,8 @@
 										</div>
 									</div>
 									<div class="row mt-4">
-										<div v-for="val in packs[currentPack].data" class="col-auto">
-											<div class="poker-card" @click="clickedPokerCard(val)">
+										<div v-for="(val, index) in packs[currentPack].data" class="col-auto" :index="index" ref="pokerCards">
+											<div class="poker-card" @click="clickedPokerCard(val, index)" :class="checkForSelection(val)">
 												<span class="card-value">{{ val }}</span>
 											</div>
 										</div>
