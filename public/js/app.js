@@ -4,18 +4,26 @@
         Vue.createApp({
             data() {
                 return {
+                    // Global
                     db: null,
+                    roomID: '',
+
+                    // View-related
                     roomCreated: false,
                     showLoading: true,
-                    roomID: '',
                     isRoomAdmin: true,
-                    participants: [],
-                    participantID: '',
+                    
+                    // Metadata-related
                     currentPack: 0,
                     revealed: false,
-                    revealButtonText: 'Reveal',
+
+                    // Room-related
+                    participants: null,
+                    participantID: '',
+
+                    // Front-end -related
+                    cardSelection: '',
                     totalsText: '(Hidden)',
-                    cardSelection: '', 
                     packs: [{
                             id: 0,
                             title: 'Fibonacci',
@@ -134,58 +142,47 @@
             created() {
                 this.db = firebase.firestore();
                 this.joinRoom();
+                window.addEventListener('beforeunload', this.unmountRoom);
             },
             mounted() {
                 this.showLoading = false;
             },
-            destroy() {
-                //remove user from room
-            },
             watch: {
                 revealed() {
-                    var self = this;
-                    if (self.revealed) {
+                    if (this.revealed) {
                         var hi = 0;
                         var lo = 99;
-                        if (self.currentPack == 0) {
-                            //Calculate totals
+
+                        if (this.currentPack == 0) {
+                            // Calculate totals
                             var total = 0;
-                            var avg = 0;
+                            var average = 0;
 
-                            self.participants.forEach(p => {
-                                var c = parseInt(p.selection);
-                                if (c > hi) {
-                                    hi = c;
+                            var self = this;
+                            var voteValues = [];
+                            Object.keys(this.participants).forEach(function(key) {
+                                var selection = parseInt(self.participants[key].selection);
+                                voteValues.push(selection);
+                                if (selection > hi) {
+                                    hi = selection;
                                 }
-                                if (c < lo) {
-                                    lo = c;
+                                if (selection < lo) {
+                                    lo = selection;
                                 }
-                                total += c;
+                                total += selection;
                             });
 
-                            avg = total / self.participants.length;
+                            average = total / Object.keys(this.participants).length;
 
-                            self.totalsText = 'Hi: ' + hi + '; Lo: ' + lo + '; Avg: ' + avg;
-                        } else if (self.currentPack == 3) {
-                            var votes = [];
-                            self.participants.forEach(p => {
-                                var c = parseInt(p.selection);
-                                votes.push(c);
-                                if (c > hi) {
-                                    hi = c;
-                                }
-                                if (c < lo) {
-                                    lo = c;
-                                }
-                                total += c;
-                            });
-
-                            self.totalsText = 'Hi: ' + hi + '; Lo: ' + lo + '; St. Dev: ' + self.getStandardDeviation(votes);
+                            this.totalsText = 'High: ' + hi + '; Low: ' + lo + '; Average: ' + average + ', \u03C3=' + self.getStandardDeviation(voteValues);
                         } else {
-                            self.totalsText = 'Scoring not available';
+                            this.totalsText = 'Scoring not available';
                         }
                     } else {
-                        self.totalsText = '(Hidden)';
+                        this.totalsText = '(Hidden)';
+                        for (var j = 0; j < this.$refs.pokerCards.length; j++) {
+                            this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
+                        }
                     }
 
                     anime({
@@ -197,52 +194,70 @@
                     });
                 }
             },
-            computed: {
-            },
             methods: {
-                createRoom() {
-                    var self = this;
-                    this.$refs.createRoomButton.disabled = true;
-                    var docID = _.toString(uuidv4());
-                    var room = {
-                        docID: docID,
-                        participants: [],
-                        currentPack: 0,
-                        revealed: false
-                    };
-                    this.db.collection('rooms').doc(docID).set(room)
-                        .then(() => {
-                            self.roomID = room.docID;
-                            self.listenRoom();
-                            var name = self.getRandomParticipantName();
-                            var avatarURL = self.getAvatarFromName(name);
-                            //Make a new participant
-                            var participant = {
-                                participantID: _.toString(uuidv4()),
-                                name: name,
-                                selection: '',
-                                avatarURL: avatarURL
-                            };
-                            self.participantID = participant.participantID;
-                            self.participants.push(participant);
-                            self.db.collection('rooms').doc(self.roomID).update({
-                                participants: self.participants
-                            }).catch((error) => {
-                                console.error(error);
-                            });
-                            self.roomCreated = true;
-                            self.$refs.copyInput.value = 'https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + room.docID;
-                            self.copyTextToClipboard('https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + room.docID);
-                            var copyModal = new bootstrap.Modal(this.$refs.copyToClipboardModal);
-                            self.$refs.copyToClipboardModal.addEventListener('shown.bs.modal', () => {
-                                self.$refs.copyInput.focus();
-                            });
-                            copyModal.toggle();
-                        })
-                        .catch((error) => {
+                unmountRoom() {
+                    //Let this code complete before allowing page to close
+                    /*
+                    this.db.collection('rooms').doc(this.roomID).delete().then(() => {
+                        console.log('Closed room');
+                        this.db.collection('metadata').doc(this.roomID).delete().then(() => {
+                            console.log('Closed metadata');
+                        }).catch((error) => {
                             console.error(error);
                         });
+                    }).catch((error) => {
+                        console.error(error);
+                    });
+                    */
                 },
+
+                async createRoom() {
+                    this.$refs.createRoomButton.disabled = true;
+                    this.roomID = _.toString(uuidv4());
+                    //Firebase doc ID is the room ID
+                    //Field name is the participant ID
+                    const name = this.getRandomParticipantName();
+                    const avatarURL = this.getAvatarFromName(name);
+                    const participantID = _.toString(uuidv4()); 
+                    this.participantID = participantID;
+                    const participant = {
+                        participantID: participantID,
+                        name: name,
+                        selection: '',
+                        avatarURL: avatarURL
+                    };
+                    const room = {
+                        [participantID]: participant
+                    };
+
+                    try {
+                        await this.db.collection('rooms').doc(this.roomID).set(room);
+                    } catch(error) {
+                        console.error(error);
+                    }
+
+                    try {
+                        await this.db.collection('metadata').doc(this.roomID).set({
+                            currentPack: 0,
+                            revealed: false
+                        });
+                    } catch(error) {
+                        console.error(error);
+                    }
+
+                    this.listenRoom();
+
+                    this.roomCreated = true;
+
+                    this.$refs.copyInput.value = 'https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + this.roomID;
+                    this.copyTextToClipboard('https://agile-planning-poker-c0fea.firebaseapp.com/index.html?' + this.roomID);
+                    var copyModal = new bootstrap.Modal(this.$refs.copyToClipboardModal);
+                    this.$refs.copyToClipboardModal.addEventListener('shown.bs.modal', () => {
+                        this.$refs.copyInput.focus();
+                    });
+                    copyModal.toggle();
+                },
+
                 joinRoom() {
                     var self = this;
                     var u = _.toString(window.location.href);
@@ -251,6 +266,7 @@
                         //User has not joined a room
                         return;
                     }
+
                     //User joined room
                     this.roomID = params[1];
 
@@ -265,36 +281,35 @@
                     return this.db.runTransaction((transaction) => {
                         return transaction.get(docRef).then((doc) => {
                             if (!doc.exists) {
+                                new bootstrap.Modal(this.$refs.closedByAdminModal).toggle();
                                 throw 'Document does not exist!';
                             }
 
-                            self.currentPack = doc.data().currentPack;
-                            self.participants = doc.data().participants;
-                            self.revealed = doc.data().revealed;
-                            var pID = _.toString(uuidv4());
+                            const pID = _.toString(uuidv4());
                             var participant = null;
                             //Check to see if the user previously connected to the room
                             if (self.getLocalStorage(self.roomID) === null) {
                                 //The user has not joined this room before
                                 self.setLocalStorage(self.roomID, pID); //Set local storage so we can connect again if need be
                                 //Make a new participant
-                                var name = self.getRandomParticipantName();
-                                var avatarURL = self.getAvatarFromName(name);
+                                const myName = self.getRandomParticipantName();
+                                const avatarURL = self.getAvatarFromName(myName);
                                 participant = {
                                     participantID: pID,
-                                    name: name,
+                                    name: myName,
                                     selection: '',
                                     avatarURL: avatarURL
                                 };
-                                self.participants.push(participant);
                                 self.participantID = pID;
+                                
                                 transaction.update(docRef, {
-                                    participants: self.participants
+                                    [pID]: participant
                                 });
                                 return self.participants;
                             } else {
                                 //The user has joined this room before, don't create a new participant
-                                self.participantID = self.getLocalStorage(self.roomID);
+                                //TODO:
+                                //self.participantID = self.getLocalStorage(self.roomID);
                             }
                         });
                     }).then(() => {
@@ -304,78 +319,49 @@
                     });
                 },
                 listenRoom() {
-                    var self = this;
                     this.db.collection('rooms').doc(this.roomID).onSnapshot((doc) => {
-                        self.currentPack = doc.data().currentPack;
-                        self.revealed = doc.data().revealed;
-                        
-                        //Find out what participant change occurred
-                        //Loop thru server copy of participant list
-                        doc.data().participants.forEach(participant => {
-                            //Find corresponding participant
-                            var id = _.findIndex(self.participants, function (o) {
-                                return o.participantID == participant.participantID;
-                            });
-                            if (id === -1) {
-                                //User was newly added
-                                console.log('Added ' + participant.name);
-                                self.participants.push(participant);
-                            } else {
-                                if (self.participants[id].selection !== participant.selection) {
-                                    //Someone made a selection change
-                                    console.log(participant.name + ' changed their selection');
-                                    self.participants[id].selection = participant.selection;
-                                }
-                                //This is me
-                                if (participant.participantID == self.participantID) {
-                                    if (participant.selection === "") {
-                                        //Room was reset, reset my card
-                                        self.cardSelection = "";
-                                    }
-                                }
-                            }
-                        });
-                        self.participants = doc.data().participants;
+                        if (!doc.exists) {
+                            //Room has been closed by admin
+                            new bootstrap.Modal(this.$refs.closedByAdminModal).toggle();
+                        } else {
+                            this.participants = doc.data();
+                            console.log('Participant room list changed');
+                        }
+                    });
+
+                    this.db.collection('metadata').doc(this.roomID).onSnapshot((doc) => {
+                        if (!doc.exists) {
+                            //Room has been closed by admin
+                            new bootstrap.Modal(this.$refs.closedByAdminModal).toggle();
+                        } else {
+                            this.currentPack = doc.data().currentPack;
+                            this.revealed = doc.data().revealed;
+                            console.log('metadata/{' + this.roomID + '} updated');
+                        }
                     });
                 },
                 changeCardPack(pack) {
-                    var self = this;
-                    this.currentPack = pack.id;
-
-                    //Get current room data
-                    var docRef = this.db.collection('rooms').doc(this.roomID);
-                    return this.db.runTransaction((transaction) => {
-                        return transaction.get(docRef).then((doc) => {
-                            if (!doc.exists) {
-                                throw 'Document does not exist!';
-                            }
-
-                            transaction.update(docRef, {
-                                currentPack: self.currentPack
-                            });
-                            return self.currentPack;
+                    var docRef = this.db.collection('metadata').doc(this.roomID);
+                    try {
+                        return docRef.update({
+                            currentPack: pack.id
                         });
-                    }).then(() => {
-                        console.log('Transaction successful!');
-                    }).catch((error) => {
-                        console.error('Transaction failed: ', error);
-                    });
+                    } catch(error) {
+                        console.error(error);
+                    }
                 },
                 clickedPokerCard(val, index) {
-                    this.cardSelection = val;
-                    //Remove any previously selected cards
+                    // Update front end to reflect the clicked poker card
+                    
+                    // Remove any clicked poker cards
                     for (var j = 0; j < this.$refs.pokerCards.length; j++) {
                         this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
                     }
+                    // Find clicked poker card and add 'selected' class
                     this.$refs.pokerCards[index].childNodes[0].classList.add('selected');
-                    var changeIndex = 0;
-                    for (var i = 0; i < this.participants.length; i++) {
-                        if (this.participants[i].participantID === this.participantID) {
-                            changeIndex = i;
-                            this.participants[i].selection = val;
-                            break;
-                        }
-                    }
+
+                    // Run Firebase transaction
+                    var self = this;
                     var docRef = this.db.collection('rooms').doc(this.roomID);
                     return this.db.runTransaction((transaction) => {
                         return transaction.get(docRef).then((doc) => {
@@ -383,12 +369,12 @@
                                 throw 'Document does not exist!';
                             }
 
-                            var p = doc.data().participants;
-                            p[changeIndex].selection = val;
+                            const field = self.participantID + '.selection';
+                            
                             transaction.update(docRef, {
-                                participants: p
+                                [field]: val
                             });
-                            return p;
+                            return;
                         });
                     }).then(() => {
                         console.log('Transaction successful!');
@@ -401,55 +387,41 @@
                         'selected': val === this.cardSelection ? true : false
                     };
                 },
-                reveal() {
-                    var self = this;
+                async reveal() {
                     this.$refs.headerText.style.opacity = 0;
 
-                    //Get current room data
-                    var docRef = this.db.collection('rooms').doc(this.roomID);
-                    return this.db.runTransaction((transaction) => {
-                        return transaction.get(docRef).then((doc) => {
-                            if (!doc.exists) {
-                                throw 'Document does not exist!';
-                            }
-                            for (var j = 0; j < self.$refs.pokerCards.length; j++) {
-                                self.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
-                            }
-                            if (self.revealed) {
-                                self.revealButtonText = 'Reveal';
-                                self.revealed = false;
-                                transaction.update(docRef, {
-                                    revealed: false
-                                });
-                                return self.revealed;
-                            } else {
-                                self.revealButtonText = 'Hide';
-                                self.revealed = true;
-                                transaction.update(docRef, {
-                                    revealed: true
-                                });
-                                return self.revealed;
-                            }
+                    //Change cloud 'revealed' variable from false to true
+                    var docRef = this.db.collection('metadata').doc(this.roomID);
+
+                    try {
+                        await docRef.update({
+                            revealed: true
                         });
-                    }).then(() => {
-                        console.log('Transaction successful!');
-                    }).catch((error) => {
-                        console.error('Transaction failed: ', error);
-                    });
-                },
-                reset() {
-                    var self = this;
-                    //Reset everyone's selection
-                    this.participants.forEach(element => {
-                        element.selection = '';
-                    });
+                    } catch(error) {
+                        console.error(error);
+                    }
+
+                    // Remove 'selected' class from clicked poker card
                     for (var j = 0; j < this.$refs.pokerCards.length; j++) {
                         this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
                     }
-                    //Hide numbers
-                    this.revealed = false;
-                    this.revealButtonText = 'Reveal';
+                },
+                async reset() {
+                    //Reset everyone's selection
+                    for (var j = 0; j < this.$refs.pokerCards.length; j++) {
+                        this.$refs.pokerCards[j].childNodes[0].classList.remove('selected');
+                    }
+
                     this.totalsText = '(Hidden)';
+
+                    try {
+                        await this.db.collection('metadata').doc(this.roomID).update({
+                            revealed: false
+                        });
+                    } catch(error) {
+                        console.error(error);
+                    }
+                    
                     //Get current room data
                     var docRef = this.db.collection('rooms').doc(this.roomID);
                     return this.db.runTransaction((transaction) => {
@@ -457,21 +429,20 @@
                             if (!doc.exists) {
                                 throw 'Document does not exist!';
                             }
-                            var update = {
-                                revealed: false,
-                                participants: self.participants
-                            };
-                            transaction.update(docRef, update);
-                            return update;
+
+                            var updateParticipants = doc.data();
+
+                            Object.keys(updateParticipants).forEach(function(key){ 
+                                updateParticipants[key].selection = '';
+                            });
+                            transaction.update(docRef, updateParticipants);
+                            return;
                         });
                     }).then(() => {
                         console.log('Transaction successful!');
                     }).catch((error) => {
                         console.error('Transaction failed: ', error);
                     });
-                },
-                updateTotalsText() {
-                    //
                 },
 
                 //Utils
